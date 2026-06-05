@@ -1,0 +1,109 @@
+#!/bin/bash
+# -*- mode: sh; indent-tabs-mode: nil; sh-basic-offset: 4 -*-
+# vim: autoindent tabstop=4 shiftwidth=4 expandtab softtabstop=4 filetype=bash
+
+TOOL_DIR=$(dirname "$0")
+TOOL_OUTPUT_DIR=$(pwd)
+
+TARGET="auto"
+FREQUENCY=99
+CALL_GRAPH="dwarf"
+PERF_EXTRA_OPTS=""
+RETRY_INTERVAL=10
+RETRY_MAX=30
+
+longopts="target:,frequency:,call-graph:,perf-extra-opts:,retry-interval:,retry-max:"
+opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
+if [ $? -ne 0 ]; then
+    printf -- "\tUnrecognized option specified\n\n"
+    exit 1
+fi
+eval set -- "$opts";
+while true; do
+    case "$1" in
+        --target)
+            shift;
+            TARGET="$1"
+            shift
+            ;;
+        --frequency)
+            shift;
+            FREQUENCY="$1"
+            shift
+            ;;
+        --call-graph)
+            shift;
+            CALL_GRAPH="$1"
+            shift
+            ;;
+        --perf-extra-opts)
+            shift;
+            PERF_EXTRA_OPTS="$1"
+            shift
+            ;;
+        --retry-interval)
+            shift;
+            RETRY_INTERVAL="$1"
+            shift
+            ;;
+        --retry-max)
+            shift;
+            RETRY_MAX="$1"
+            shift
+            ;;
+        --)
+            shift;
+            break
+            ;;
+        *)
+            echo "Invalid option: $1"
+            exit 1
+    esac
+done
+
+echo "tool-ebpf-dpdk: start: target=${TARGET} frequency=${FREQUENCY} call-graph=${CALL_GRAPH}"
+echo "tool-ebpf-dpdk: start: TOOL_OUTPUT_DIR=${TOOL_OUTPUT_DIR}"
+echo "tool-ebpf-dpdk: start: TOOL_DIR=${TOOL_DIR}"
+
+TIDS=""
+ATTEMPT=0
+while [ -z "${TIDS}" ] && [ ${ATTEMPT} -lt ${RETRY_MAX} ]; do
+    TIDS=$(python3 ${TOOL_DIR}/pmd-discovery.py --target "${TARGET}" --output tids 2>"${TOOL_OUTPUT_DIR}/pmd-discovery-stderr.txt")
+    if [ -z "${TIDS}" ]; then
+        ATTEMPT=$((ATTEMPT + 1))
+        echo "tool-ebpf-dpdk: start: no PMD threads found (attempt ${ATTEMPT}/${RETRY_MAX}), retrying in ${RETRY_INTERVAL}s..."
+        sleep "${RETRY_INTERVAL}"
+    fi
+done
+
+if [ -z "${TIDS}" ]; then
+    echo "tool-ebpf-dpdk: start: WARNING: no PMD threads found after ${RETRY_MAX} attempts"
+    echo "tool-ebpf-dpdk: start: saving discovery log and exiting gracefully"
+    echo "no-pmd-threads-found" > "${TOOL_OUTPUT_DIR}/ebpf-dpdk-status.txt"
+    exit 0
+fi
+
+echo "tool-ebpf-dpdk: start: discovered TIDs: ${TIDS}"
+echo "${TIDS}" > "${TOOL_OUTPUT_DIR}/ebpf-dpdk-tids.txt"
+
+python3 ${TOOL_DIR}/pmd-discovery.py --target "${TARGET}" --output json \
+    > "${TOOL_OUTPUT_DIR}/pmd-discovery.json" 2>/dev/null
+
+mkdir -p ~/.debug
+
+PERF_CMD="/usr/bin/perf record"
+PERF_CMD+=" -F ${FREQUENCY}"
+PERF_CMD+=" -g"
+PERF_CMD+=" --call-graph ${CALL_GRAPH}"
+PERF_CMD+=" -t ${TIDS}"
+PERF_CMD+=" -o ${TOOL_OUTPUT_DIR}/perf.data"
+if [ -n "${PERF_EXTRA_OPTS}" ]; then
+    PERF_CMD+=" ${PERF_EXTRA_OPTS}"
+fi
+
+echo "tool-ebpf-dpdk: start: running: ${PERF_CMD}"
+${PERF_CMD} &
+PERF_PID=$!
+echo "${PERF_PID}" > "${TOOL_OUTPUT_DIR}/ebpf-dpdk-perf-pid.txt"
+echo "tool-ebpf-dpdk: start: perf record started (PID ${PERF_PID})"
+echo "running" > "${TOOL_OUTPUT_DIR}/ebpf-dpdk-status.txt"

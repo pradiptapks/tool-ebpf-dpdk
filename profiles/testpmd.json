@@ -1,0 +1,6 @@
+{
+    "name": "testpmd",
+    "description": "Profile DPDK testpmd lcore threads",
+    "target": "testpmd",
+    "discovery": "proc-scan"
+}

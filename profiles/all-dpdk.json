@@ -1,0 +1,6 @@
+{
+    "name": "all-dpdk",
+    "description": "Profile all discoverable DPDK PMD threads on the host",
+    "target": "all",
+    "discovery": "auto"
+}

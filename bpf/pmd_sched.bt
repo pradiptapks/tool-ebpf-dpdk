@@ -1,0 +1,44 @@
+/*
+ * pmd_sched.bt - Detect scheduling interference on DPDK PMD cores
+ *
+ * Traces sched_switch events on specified CPUs to identify when PMD
+ * threads are preempted and what replaces them. Produces per-preemption
+ * events suitable for off-CPU flamegraph generation.
+ *
+ * Usage:
+ *   bpftrace pmd_sched.bt -p <ovs-vswitchd-pid>
+ *
+ * Or with CPU filter (comma-separated list set via env):
+ *   PMD_CPUS="4,6,8,10" bpftrace pmd_sched.bt
+ *
+ * Output format (one line per preemption):
+ *   timestamp_ns prev_comm prev_tid next_comm next_tid cpu off_cpu_ns
+ */
+
+tracepoint:sched:sched_switch
+{
+    $prev_pid = args.prev_pid;
+    $next_pid = args.next_pid;
+
+    /* Record when a PMD thread is switched OUT */
+    if (args.prev_comm == "pmd-c*" || args.prev_comm == "lcore-worker*") {
+        @off_cpu[$prev_pid] = nsecs;
+    }
+
+    /* Record when a PMD thread is switched back IN */
+    if (@off_cpu[$next_pid]) {
+        $off_ns = nsecs - @off_cpu[$next_pid];
+        printf("%llu %s %d %s %d %d %llu\n",
+            nsecs,
+            args.prev_comm, $prev_pid,
+            args.next_comm, $next_pid,
+            cpu,
+            $off_ns);
+        delete(@off_cpu[$next_pid]);
+    }
+}
+
+END
+{
+    clear(@off_cpu);
+}

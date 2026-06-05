@@ -1,0 +1,6 @@
+{
+    "name": "ovs-dpdk",
+    "description": "Profile OVS-DPDK PMD threads on the compute host",
+    "target": "ovs-vswitchd",
+    "discovery": "ovs-appctl"
+}

@@ -1,0 +1,31 @@
+{
+    "workshop": {
+        "schema": {
+            "version": "2020.03.02"
+        }
+    },
+    "userenvs": [
+        {
+            "name": "default",
+            "requirements": [ "perf_deps", "flamegraph" ]
+        }
+    ],
+    "requirements": [
+        {
+            "name": "perf_deps",
+            "type": "distro",
+            "distro_info": {
+                "packages": [ "perf", "python3", "xz" ]
+            }
+        },
+        {
+            "name": "flamegraph",
+            "type": "manual",
+            "manual_info": {
+                "commands": [
+                    "git clone --depth 1 https://github.com/brendangregg/FlameGraph.git /opt/FlameGraph"
+                ]
+            }
+        }
+    ]
+}

@@ -1,0 +1,53 @@
+{
+    "rickshaw-tool": {
+        "schema": {
+            "version": "2020.03.18"
+        }
+    },
+    "tool": "ebpf-dpdk",
+    "controller": {
+        "post-script": "%tool-dir%ebpf-dpdk-post-process"
+    },
+    "collector": {
+        "files-from-controller": [
+            {
+                "src": "%tool-dir%/ebpf-dpdk-start",
+                "dest": "/usr/bin/"
+            },
+            {
+                "src": "%tool-dir%/ebpf-dpdk-stop",
+                "dest": "/usr/bin/"
+            },
+            {
+                "src": "%tool-dir%/pmd-discovery.py",
+                "dest": "/usr/bin/"
+            }
+        ],
+        "blacklist": [
+            {
+                "endpoint": "remotehosts",
+                "collector-types": [ "client", "server" ]
+            },
+            {
+                "endpoint": "kube",
+                "collector-types": [ "client", "server" ]
+            }
+        ],
+        "whitelist": [
+            {
+                "endpoint": "osp",
+                "collector-types": [ "compute" ]
+            },
+            {
+                "endpoint": "remotehosts",
+                "collector-types": [ "profiler" ]
+            },
+            {
+                "endpoint": "kube",
+                "collector-types": [ "profiler" ]
+            }
+        ],
+        "start": "ebpf-dpdk-start",
+        "stop": "ebpf-dpdk-stop"
+    }
+}
